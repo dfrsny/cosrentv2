@@ -1,16 +1,20 @@
-import 'package:cosrent_v2/features/auth/presentation/pages/login_page.dart';
-import 'package:cosrent_v2/features/chat/presentation/pages/chat_page.dart';
-import 'package:cosrent_v2/features/favorite/presentation/pages/favorite_page.dart';
-import 'package:cosrent_v2/features/home/presentation/pages/home_page.dart';
-import 'package:cosrent_v2/features/profile/presentation/pages/profile_page.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
 import 'package:line_icons/line_icons.dart';
 
-// ---------------------------------------------------------------------------
-// Routes
-// ---------------------------------------------------------------------------
+import 'package:cosrent_v2/features/auth/presentation/pages/login_page.dart';
+import 'package:cosrent_v2/features/chat/presentation/pages/chat_page.dart';
+import 'package:cosrent_v2/features/favorite/presentation/pages/favorite_page.dart';
+import 'package:cosrent_v2/features/home/presentation/pages/home_page.dart';
+import 'package:cosrent_v2/features/profile/presentation/pages/profile_page.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:cosrent_v2/features/auth/presentation/cubit/auth_cubit.dart';
+import 'package:cosrent_v2/app/di/injection.dart';
+
+// ============================================================
+// APP ROUTES
+// ============================================================
 
 abstract final class AppRoutes {
   static const login = '/login';
@@ -20,12 +24,12 @@ abstract final class AppRoutes {
   static const profile = '/profile';
 }
 
-// ---------------------------------------------------------------------------
-// Bottom navigation configuration
-// ---------------------------------------------------------------------------
+// ============================================================
+// NAVIGATION CONFIGURATION
+// ============================================================
 
-class _NavTab {
-  const _NavTab({
+class _NavItem {
+  const _NavItem({
     required this.route,
     required this.icon,
     required this.label,
@@ -38,26 +42,26 @@ class _NavTab {
   final Widget page;
 }
 
-const _tabs = <_NavTab>[
-  _NavTab(
+const List<_NavItem> _navItems = [
+  _NavItem(
     route: AppRoutes.home,
     icon: LineIcons.home,
     label: 'Home',
     page: HomePage(),
   ),
-  _NavTab(
+  _NavItem(
     route: AppRoutes.favorite,
     icon: LineIcons.heart,
     label: 'Favorite',
     page: FavoritePage(),
   ),
-  _NavTab(
+  _NavItem(
     route: AppRoutes.chat,
     icon: LineIcons.comment,
     label: 'Chat',
     page: ChatPage(),
   ),
-  _NavTab(
+  _NavItem(
     route: AppRoutes.profile,
     icon: LineIcons.user,
     label: 'Profile',
@@ -65,37 +69,52 @@ const _tabs = <_NavTab>[
   ),
 ];
 
-abstract final class _NavStyle {
-  static const ink = Color.fromARGB(255, 255, 30, 248);
-  static const muted = Color.fromARGB(255, 92, 32, 32);
+// ============================================================
+// APP COLORS
+// ============================================================
+
+abstract final class _NavColors {
+  static const primary = Color(0xFFFF1EF8);
+  static const inactive = Color(0xFF5C2020);
   static const border = Color(0xFFEEEEEE);
 }
 
-// ---------------------------------------------------------------------------
-// Router
-// ---------------------------------------------------------------------------
+// ============================================================
+// GO ROUTER
+// ============================================================
 
 final GoRouter router = GoRouter(
   initialLocation: AppRoutes.login,
+
   routes: [
+    // Login Route
     GoRoute(
       path: AppRoutes.login,
-      builder: (context, state) => const LoginPage(),
+      builder: (context, state) {
+        return BlocProvider(
+          create: (context) => AuthCubit(Injection.loginUseCase),
+          child: const LoginPage(),
+        );
+      },
     ),
+
+    // Main Application Shell
     ShellRoute(
-      builder: (context, state, child) =>
-          _MainShell(currentPath: state.uri.path, child: child),
+      builder: (context, state, child) {
+        return _MainShell(currentPath: state.uri.path, child: child);
+      },
+
       routes: [
-        for (final tab in _tabs)
-          GoRoute(path: tab.route, builder: (context, state) => tab.page),
+        for (final item in _navItems)
+          GoRoute(path: item.route, builder: (context, state) => item.page),
       ],
     ),
   ],
 );
 
-// ---------------------------------------------------------------------------
-// Shell
-// ---------------------------------------------------------------------------
+// ============================================================
+// MAIN SHELL
+// ============================================================
 
 class _MainShell extends StatelessWidget {
   const _MainShell({required this.currentPath, required this.child});
@@ -105,21 +124,32 @@ class _MainShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final index = _tabs.indexWhere((tab) => currentPath.startsWith(tab.route));
+    final selectedIndex = _navItems.indexWhere(
+      (item) => item.route == currentPath,
+    );
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: child,
-      bottomNavigationBar: _BottomNav(
-        selectedIndex: index < 0 ? 0 : index,
-        onTabChange: (index) => context.go(_tabs[index].route),
+      bottomNavigationBar: _BottomNavigation(
+        selectedIndex: selectedIndex < 0 ? 0 : selectedIndex,
+        onTabChange: (index) {
+          context.go(_navItems[index].route);
+        },
       ),
     );
   }
 }
 
-class _BottomNav extends StatelessWidget {
-  const _BottomNav({required this.selectedIndex, required this.onTabChange});
+// ============================================================
+// BOTTOM NAVIGATION
+// ============================================================
+
+class _BottomNavigation extends StatelessWidget {
+  const _BottomNavigation({
+    required this.selectedIndex,
+    required this.onTabChange,
+  });
 
   final int selectedIndex;
   final ValueChanged<int> onTabChange;
@@ -129,7 +159,7 @@ class _BottomNav extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(top: BorderSide(color: _NavStyle.border)),
+        border: Border(top: BorderSide(color: _NavColors.border)),
       ),
       child: SafeArea(
         top: false,
@@ -139,7 +169,8 @@ class _BottomNav extends StatelessWidget {
             selectedIndex: selectedIndex,
             onTabChange: onTabChange,
             tabs: [
-              for (final tab in _tabs) GButton(icon: tab.icon, text: tab.label),
+              for (final item in _navItems)
+                GButton(icon: item.icon, text: item.label),
             ],
             gap: 8,
             iconSize: 22,
@@ -147,11 +178,11 @@ class _BottomNav extends StatelessWidget {
             tabBorderRadius: 12,
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeOut,
-            color: _NavStyle.muted,
-            activeColor: _NavStyle.ink,
-            tabBackgroundColor: _NavStyle.ink.withValues(alpha: 0.06),
-            rippleColor: const Color.fromARGB(255, 255, 30, 248),
-            hoverColor: const Color.fromARGB(255, 255, 30, 248),
+            color: _NavColors.inactive,
+            activeColor: _NavColors.primary,
+            tabBackgroundColor: _NavColors.primary.withValues(alpha: 0.06),
+            rippleColor: _NavColors.primary.withValues(alpha: 0.1),
+            hoverColor: _NavColors.primary.withValues(alpha: 0.05),
           ),
         ),
       ),
